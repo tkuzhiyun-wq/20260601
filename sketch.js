@@ -5,6 +5,10 @@ let stars = [];
 const colors = ['#f6bd60', '#f7ede2', '#f5cac3', '#84a59d', '#f28482'];
 let lastSpawnTime = 0;
 let score = 0;
+let gameState = "PLAYING"; // 狀態: PLAYING, WIN, GAMEOVER
+let gameStartTime;
+let gameDuration = 60000; // 一分鐘 (60000毫秒)
+let targetScore = 100; // 當前目標分數
 
 function setup() {
   // 建立全螢幕畫布
@@ -15,6 +19,7 @@ function setup() {
     particles.push(new Particle());
   }
   lastSpawnTime = millis();
+  gameStartTime = millis();
 
   // 初始產生 100 個背景裝飾星星
   for (let i = 0; i < 100; i++) {
@@ -32,8 +37,23 @@ function draw() {
     s.display();
   }
 
-  // 每隔 5 秒產生一個新物件
-  if (millis() - lastSpawnTime > 5000) {
+  if (gameState === "PLAYING") {
+    updateGameLogic();
+    checkGameStatus();
+  }
+
+  // 始終顯示遊戲物件與 UI
+  displayGameObjects();
+  drawUI();
+
+  if (gameState !== "PLAYING") {
+    showEndScreen();
+  }
+}
+
+function updateGameLogic() {
+  // 每隔 3 秒產生一個新物件
+  if (millis() - lastSpawnTime > 3000) {
     particles.push(new Particle());
     lastSpawnTime = millis();
   }
@@ -41,7 +61,6 @@ function draw() {
   // 更新並顯示爆炸效果
   for (let i = explosions.length - 1; i >= 0; i--) {
     explosions[i].update();
-    explosions[i].display();
     if (explosions[i].isFinished()) {
       explosions.splice(i, 1);
     }
@@ -50,7 +69,6 @@ function draw() {
   // 更新並顯示飛彈
   for (let i = missiles.length - 1; i >= 0; i--) {
     missiles[i].update();
-    missiles[i].display();
 
     // 檢查飛彈是否擊中粒子
     for (let j = particles.length - 1; j >= 0; j--) {
@@ -76,18 +94,80 @@ function draw() {
   for (let i = particles.length - 1; i >= 0; i--) {
     let p = particles[i];
     p.update();
+  }
+}
+
+function displayGameObjects() {
+  // 顯示背景星星
+  for (let s of stars) {
+    s.display();
+  }
+
+  // 顯示所有爆炸
+  for (let e of explosions) {
+    e.display();
+  }
+
+  // 顯示所有飛彈
+  for (let m of missiles) {
+    m.display();
+  }
+
+  // 顯示所有粒子
+  for (let p of particles) {
     p.display();
   }
 
   // 繪製中央指標 (箭頭)
   drawCenterUI();
+}
 
-  // 顯示分數
+function checkGameStatus() {
+  let elapsedTime = millis() - gameStartTime;
+  let timeLeft = gameDuration - elapsedTime;
+
+  if (score >= targetScore) {
+    gameState = "WIN";
+  } else if (timeLeft <= 0) {
+    gameState = "GAMEOVER";
+  }
+}
+
+function drawUI() {
   fill(255);
   noStroke();
   textSize(24);
   textAlign(LEFT, TOP);
-  text('Score: ' + score, 20, 20);
+  text('Score: ' + score + ' / Target: ' + targetScore, 20, 20);
+
+  let timeLeft = max(0, ceil((gameDuration - (millis() - gameStartTime)) / 1000));
+  textAlign(RIGHT, TOP);
+  text('Time Left: ' + timeLeft + 's', width - 20, 20);
+}
+
+function showEndScreen() {
+  push();
+  fill(0, 150);
+  rect(0, 0, width, height); 
+  
+  textAlign(CENTER, CENTER);
+  if (gameState === "WIN") {
+    fill('#84a59d');
+    textSize(64);
+    text("YOU WIN!", width / 2, height / 2 - 40);
+    textSize(24);
+    fill(255);
+    text("Press SPACE for Next Level", width / 2, height / 2 + 40);
+  } else if (gameState === "GAMEOVER") {
+    fill('#f28482');
+    textSize(64);
+    text("GAME OVER", width / 2, height / 2 - 40);
+    textSize(24);
+    fill(255);
+    text("Final Score: " + score, width / 2, height / 2 + 40);
+    text("Press SPACE to Restart", width / 2, height / 2 + 80);
+  }
+  pop();
 }
 
 function drawCenterUI() {
@@ -115,8 +195,8 @@ class Particle {
     this.y = random(this.size, height - this.size);
     this.color = color(random(colors));
     // 設定不一樣的移動速度
-    this.vx = random(-2, 2);
-    this.vy = random(-2, 2);
+    this.vx = random(-5, 5);
+    this.vy = random(-5, 5);
     this.isCircle = false;
   }
 
@@ -292,6 +372,28 @@ class Explosion {
 
 // 監聽滑鼠點擊發射飛彈
 function mousePressed() {
-  let angle = atan2(mouseY - height / 2, mouseX - width / 2);
-  missiles.push(new Missile(width / 2, height / 2, angle));
+  if (gameState === "PLAYING") {
+    let angle = atan2(mouseY - height / 2, mouseX - width / 2);
+    missiles.push(new Missile(width / 2, height / 2, angle));
+  }
+}
+
+function keyPressed() {
+  if (key === ' ') {
+    if (gameState === "WIN") {
+      targetScore += 100; // 增加下一個階段的目標
+      gameStartTime = millis();
+      gameState = "PLAYING";
+    } else if (gameState === "GAMEOVER") {
+      // 重啟遊戲
+      score = 0;
+      targetScore = 100;
+      particles = [];
+      missiles = [];
+      explosions = [];
+      for (let i = 0; i < 10; i++) particles.push(new Particle());
+      gameStartTime = millis();
+      gameState = "PLAYING";
+    }
+  }
 }
